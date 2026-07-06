@@ -20,7 +20,6 @@ local Window = Library:CreateWindow({
 })
 
 local Tabs = {
-    Movement = Window:AddTab("Movement"),
     ESP = Window:AddTab("Esp"),
     ['UI'] = Window:AddTab("UI-Setting")
 }
