@@ -57,6 +57,7 @@ task.spawn(function()
                     end
                 end
                 TabContainer:Destroy()
+
                 Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
                     ScrollFrame.CanvasSize = UDim2.new(0, Layout.AbsoluteContentSize.X + 15, 0, 0)
                 end)
@@ -73,8 +74,6 @@ table.sort(RobloxFontsList)
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
-
-
 local Camera = game:GetService("Workspace").CurrentCamera
 local ESP_Storage = {}
 
@@ -102,12 +101,12 @@ local function CreateText()
     return text
 end
 
-local function CreateSquare()
+local function CreateSquare(filled)
     local sq
     pcall(function()
         sq = Drawing.new("Square")
         sq.Thickness = 1
-        sq.Filled = true
+        sq.Filled = (filled ~= nil and filled or true)
         sq.Transparency = 1
     end)
     return sq
@@ -115,50 +114,41 @@ end
 
 local function ImplementESPSetup(holder)
     pcall(function()
-
         holder.BoxLines = {CreateLine(1), CreateLine(1), CreateLine(1), CreateLine(1)}
         holder.BoxOutlines = {
             CreateLine(1), CreateLine(1), CreateLine(1), CreateLine(1),
             CreateLine(1), CreateLine(1), CreateLine(1), CreateLine(1)
         }
-        
         holder.CornerLines = {
             CreateLine(1), CreateLine(1), CreateLine(1), CreateLine(1),
-            CreateLine(1), CreateLine(1), CreateLine(1), CreateLine(1)
-        }
-        
+            CreateLine(1), CreateLine(1), CreateLine(1), CreateLine(1)}
         holder.CornerOutlines = {
             CreateLine(1), CreateLine(1), CreateLine(1), CreateLine(1),
             CreateLine(1), CreateLine(1), CreateLine(1), CreateLine(1),
             CreateLine(1), CreateLine(1), CreateLine(1), CreateLine(1),
             CreateLine(1), CreateLine(1), CreateLine(1), CreateLine(1)
         }
-        
         holder.BoxGlow = {
             CreateLine(1.5), CreateLine(1.5), CreateLine(1.5), CreateLine(1.5),
             CreateLine(2.5), CreateLine(2.5), CreateLine(2.5), CreateLine(2.5),
             CreateLine(3.5), CreateLine(3.5), CreateLine(3.5), CreateLine(3.5)
         }
-        
-        holder.HealthOutline = CreateSquare()
-        holder.HealthBar = CreateSquare()
-        holder.HealthGlow = {CreateSquare(), CreateSquare(), CreateSquare()}
+
+        holder.HealthOutline = CreateSquare(true)
+        holder.HealthBar = CreateSquare(true)
+        holder.HealthGlow = {CreateSquare(true), CreateSquare(true), CreateSquare(true)}
         holder.HealthText = CreateText()
-        
         holder.Name = CreateText()
         holder.NameGlow = {CreateText(), CreateText(), CreateText()}
         holder.Distance = CreateText()
         holder.DistanceGlow = {CreateText(), CreateText(), CreateText()}
-        
+
         if holder.HealthOutline then holder.HealthOutline.Color = Color3.fromRGB(0, 0, 0) end
-        if holder.HealthText then 
-            holder.HealthText.Size = 10
-            holder.HealthText.Center = true
-        end
+        if holder.HealthText then holder.HealthText.Size = 10 holder.HealthText.Center = true end
     end)
 end
 
-local function CreateESP(player)
+function CreateESP(player)
     if player == LocalPlayer then return end
     ESP_Storage[player] = {}
     ImplementESPSetup(ESP_Storage[player])
@@ -170,7 +160,13 @@ local function RemoveESP(player)
             for _, obj in pairs(ESP_Storage[player]) do
                 if type(obj) == "table" then
                     for _, subObj in pairs(obj) do
-                        if subObj and subObj.Remove then pcall(function() subObj:Remove() end) end
+                        if type(subObj) == "table" then
+                            for _, deepObj in pairs(subObj) do
+                                if deepObj and deepObj.Remove then pcall(function() deepObj:Remove() end) end
+                            end
+                        else
+                            if subObj and subObj.Remove then pcall(function() subObj:Remove() end) end
+                        end
                     end
                 else
                     if obj and obj.Remove then pcall(function() obj:Remove() end) end
@@ -216,7 +212,7 @@ local function GetCharacterBounds(character)
                     local bottom, bottomOn = Camera:WorldToViewportPoint((part.CFrame * CFrame.new(0, -size.Y / 2, 0)).Position)
                     local left, leftOn = Camera:WorldToViewportPoint((part.CFrame * CFrame.new(-size.X / 2, 0, 0)).Position)
                     local right, rightOn = Camera:WorldToViewportPoint((part.CFrame * CFrame.new(size.X / 2, 0, 0)).Position)
-                    
+
                     if topOn then minY = math.min(minY, top.Y) maxY = math.max(maxY, top.Y) end
                     if bottomOn then minY = math.min(minY, bottom.Y) maxY = math.max(maxY, bottom.Y) end
                     if leftOn then minX = math.min(minX, left.X) maxX = math.max(maxX, left.X) end
@@ -246,19 +242,33 @@ game:GetService("RunService").RenderStepped:Connect(function()
         local nameColor = Options.NameColor and Options.NameColor.Value or Color3.fromRGB(255, 255, 255)
         local distColor = Options.DistColor and Options.DistColor.Value or Color3.fromRGB(255, 255, 255)
         local hpTextColor = Options.HPTextColor and Options.HPTextColor.Value or Color3.fromRGB(255, 255, 255)
+        local nameStyle = Options.NameStyleDropdown and Options.NameStyleDropdown.Value or "Username"
+
+        local hpFullColor = Options.HPFullColor and Options.HPFullColor.Value or Color3.fromRGB(0, 255, 0)
+        local hpHalfColor = Options.HPHalfColor and Options.HPHalfColor.Value or Color3.fromRGB(255, 170, 0)
+        local hpLowColor = Options.HPLowColor and Options.HPLowColor.Value or Color3.fromRGB(255, 0, 0)
 
         local renderQueue = {}
+
         for player, esp in pairs(ESP_Storage) do
             local character = player.Character
             local rootPart = character and character:FindFirstChild("HumanoidRootPart")
             local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-            
+
             if rootPart and humanoid and humanoid.Health > 0 then
-                local rootPos2D, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
+                local _, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
+                
                 if onScreen then
                     local minX, minY, maxX, maxY = GetCharacterBounds(character)
                     if minX ~= math.huge and minY ~= math.huge and maxX ~= -math.huge and maxY ~= -math.huge then
+                        
+                        local selectedName = player.Name
+                        if nameStyle == "Display Name" then
+                            selectedName = player.DisplayName
+                        end
+
                         table.insert(renderQueue, {
+                            player = player,
                             esp = esp,
                             boxX = math.round(minX),
                             boxY = math.round(minY),
@@ -266,48 +276,45 @@ game:GetService("RunService").RenderStepped:Connect(function()
                             height = math.round(maxY - minY),
                             healthPct = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1),
                             rawHealth = math.round(humanoid.Health),
-                            nameText = player.Name,
-                            distText = "[" .. tostring(math.floor((Camera.CFrame.Position - rootPart.Position).Magnitude)) .. "m]",
-                            rootPos2D = rootPos2D
+                            nameText = selectedName,
+                            distText = "[" .. tostring(math.floor((Camera.CFrame.Position - rootPart.Position).Magnitude)) .. "m]"
                         })
-                        continue
+                    else
+                        SetVisibilityFalse(esp)
                     end
+                else
+                    SetVisibilityFalse(esp)
                 end
+            else
+                SetVisibilityFalse(esp)
             end
-            SetVisibilityFalse(esp)
         end
 
         for _, data in ipairs(renderQueue) do
             local esp = data.esp
             
-            -- [ Force Custom Fonts as requested ]
-            if esp.Name then esp.Name.Font = 3 end          -- Name ESP -> Plex (3)
-            if esp.Distance then esp.Distance.Font = 3 end  -- Distance ESP -> Plex (3)
-            if esp.HealthText then esp.HealthText.Font = 0 end -- HP Number -> UI (0)
-            
+            if esp.Name then esp.Name.Font = 3 end
+            if esp.Distance then esp.Distance.Font = 3 end
+            if esp.HealthText then esp.HealthText.Font = 0 end
             for i=1,3 do
                 if esp.NameGlow[i] then esp.NameGlow[i].Font = 3 end
                 if esp.DistanceGlow[i] then esp.DistanceGlow[i].Font = 3 end
             end
-            
-            -- [ Glow Logic ]
+
             local glow = esp.BoxGlow
             if Toggles.EspBoxGlow and Toggles.EspBoxGlow.Value then
                 glow[1].From, glow[1].To = Vector2.new(data.boxX - 1, data.boxY - 1), Vector2.new(data.boxX + data.width + 1, data.boxY - 1)
                 glow[2].From, glow[2].To = Vector2.new(data.boxX + data.width + 1, data.boxY - 1), Vector2.new(data.boxX + data.width + 1, data.boxY + data.height + 1)
                 glow[3].From, glow[3].To = Vector2.new(data.boxX + data.width + 1, data.boxY + data.height + 1), Vector2.new(data.boxX - 1, data.boxY + data.height + 1)
                 glow[4].From, glow[4].To = Vector2.new(data.boxX - 1, data.boxY + data.height + 1), Vector2.new(data.boxX - 1, data.boxY - 1)
-                
                 glow[5].From, glow[5].To = Vector2.new(data.boxX - 2, data.boxY - 2), Vector2.new(data.boxX + data.width + 2, data.boxY - 2)
                 glow[6].From, glow[6].To = Vector2.new(data.boxX + data.width + 2, data.boxY - 2), Vector2.new(data.boxX + data.width + 2, data.boxY + data.height + 2)
                 glow[7].From, glow[7].To = Vector2.new(data.boxX + data.width + 2, data.boxY + data.height + 2), Vector2.new(data.boxX - 2, data.boxY + data.height + 2)
                 glow[8].From, glow[8].To = Vector2.new(data.boxX - 2, data.boxY + data.height + 2), Vector2.new(data.boxX - 2, data.boxY - 2)
-                
                 glow[9].From, glow[9].To = Vector2.new(data.boxX - 3, data.boxY - 3), Vector2.new(data.boxX + data.width + 3, data.boxY - 3)
                 glow[10].From, glow[10].To = Vector2.new(data.boxX + data.width + 3, data.boxY - 3), Vector2.new(data.boxX + data.width + 3, data.boxY + data.height + 3)
                 glow[11].From, glow[11].To = Vector2.new(data.boxX + data.width + 3, data.boxY + data.height + 3), Vector2.new(data.boxX - 3, data.boxY + data.height + 3)
                 glow[12].From, glow[12].To = Vector2.new(data.boxX - 3, data.boxY + data.height + 3), Vector2.new(data.boxX - 3, data.boxY - 3)
-                
                 for i = 1, 4 do glow[i].Color = boxGlowColor; glow[i].Transparency = 0.5; glow[i].Visible = true end
                 for i = 5, 8 do glow[i].Color = boxGlowColor; glow[i].Transparency = 0.25; glow[i].Visible = true end
                 for i = 9, 12 do glow[i].Color = boxGlowColor; glow[i].Transparency = 0.1; glow[i].Visible = true end
@@ -348,10 +355,7 @@ game:GetService("RunService").RenderStepped:Connect(function()
             else
                 for i = 1, 3 do dGlow[i].Visible = false end
             end
-        end
 
-        for _, data in ipairs(renderQueue) do
-            local esp = data.esp
             local corner = esp.CornerLines
             local cornerOut = esp.CornerOutlines
             local isCorner = Toggles.EspCornerBox and Toggles.EspCornerBox.Value
@@ -359,7 +363,6 @@ game:GetService("RunService").RenderStepped:Connect(function()
 
             if isCorner then
                 local cl = math.clamp(math.round(data.width * 0.2), 5, 20)
-                
                 corner[1].From, corner[1].To = Vector2.new(data.boxX, data.boxY), Vector2.new(data.boxX + cl, data.boxY)
                 corner[2].From, corner[2].To = Vector2.new(data.boxX, data.boxY), Vector2.new(data.boxX, data.boxY + cl)
                 corner[3].From, corner[3].To = Vector2.new(data.boxX + data.width, data.boxY), Vector2.new(data.boxX + data.width - cl, data.boxY)
@@ -377,7 +380,6 @@ game:GetService("RunService").RenderStepped:Connect(function()
                 cornerOut[6].From, cornerOut[6].To = Vector2.new(data.boxX - 1, data.boxY + data.height + 1), Vector2.new(data.boxX - 1, data.boxY + data.height - cl - 1)
                 cornerOut[7].From, cornerOut[7].To = Vector2.new(data.boxX + data.width + 1, data.boxY + data.height + 1), Vector2.new(data.boxX + data.width - cl - 1, data.boxY + data.height + 1)
                 cornerOut[8].From, cornerOut[8].To = Vector2.new(data.boxX + data.width + 1, data.boxY + data.height + 1), Vector2.new(data.boxX + data.width + 1, data.boxY + data.height - cl - 1)
-
                 cornerOut[9].From, cornerOut[9].To = Vector2.new(data.boxX + 1, data.boxY + 1), Vector2.new(data.boxX + cl - 1, data.boxY + 1)
                 cornerOut[10].From, cornerOut[10].To = Vector2.new(data.boxX + 1, data.boxY + 1), Vector2.new(data.boxX + 1, data.boxY + cl - 1)
                 cornerOut[11].From, cornerOut[11].To = Vector2.new(data.boxX + data.width - 1, data.boxY + 1), Vector2.new(data.boxX + data.width - cl + 1, data.boxY + 1)
@@ -423,14 +425,20 @@ game:GetService("RunService").RenderStepped:Connect(function()
             if Toggles.EspHealth and Toggles.EspHealth.Value then
                 local healthHeight = math.round(data.height * data.healthPct)
                 local barY = data.boxY + data.height - healthHeight
-                
                 esp.HealthOutline.Size = Vector2.new(4, data.height + 2)
                 esp.HealthOutline.Position = Vector2.new(data.boxX - 7, data.boxY - 1)
                 esp.HealthOutline.Visible = true
-                
                 esp.HealthBar.Size = Vector2.new(2, healthHeight)
                 esp.HealthBar.Position = Vector2.new(data.boxX - 6, barY)
-                esp.HealthBar.Color = Color3.fromRGB(255, 0, 0):Lerp(Color3.fromRGB(0, 255, 0), data.healthPct)
+                
+                local finalCalculatedColor = hpFullColor
+                if data.healthPct < 0.35 then
+                    finalCalculatedColor = hpLowColor
+                elseif data.healthPct < 0.75 then
+                    finalCalculatedColor = hpHalfColor
+                end
+                
+                esp.HealthBar.Color = finalCalculatedColor
                 esp.HealthBar.Visible = true
 
                 if Toggles.EspHealthText and Toggles.EspHealthText.Value then
@@ -476,11 +484,19 @@ EspGroup:AddToggle("EspMaster", { Text = "Enable Drawing Esp", Default = false }
 EspVisualsGroup:AddToggle("EspBox", { Text = "Draw Box", Default = false }):AddColorPicker("BoxColor", { Default = Color3.fromRGB(255, 255, 255) })
 EspVisualsGroup:AddToggle("EspCornerBox", { Text = "Corner Box", Default = false }):AddColorPicker("CornerColor", { Default = Color3.fromRGB(255, 255, 255) })
 EspVisualsGroup:AddToggle("EspBoxGlow", { Text = "Box Glow", Default = false }):AddColorPicker("BoxGlowColor", { Default = Color3.fromRGB(255, 255, 255) })
+
+EspVisualsGroup:AddToggle("EspName", { Text = "Draw Name", Default = false }):AddColorPicker("NameColor", { Default = Color3.fromRGB(255, 255, 255) })
+EspVisualsGroup:AddDropdown("NameStyleDropdown", { Text = "Name Style", Values = {"Username", "Display Name"}, Default = 1, Multi = false })
+EspVisualsGroup:AddToggle("EspNameGlow", { Text = "Name Glow", Default = false }):AddColorPicker("NameGlowColor", { Default = Color3.fromRGB(255, 255, 255) })
+
 EspVisualsGroup:AddToggle("EspHealth", { Text = "Draw Health Bar", Default = false })
+    :AddColorPicker("HPFullColor", { Default = Color3.fromRGB(0, 255, 0), Title = "Full HP Color" })
+    :AddColorPicker("HPHalfColor", { Default = Color3.fromRGB(255, 170, 0), Title = "Half HP Color" })
+    :AddColorPicker("HPLowColor", { Default = Color3.fromRGB(255, 0, 0), Title = "Low HP Color" })
+
 EspVisualsGroup:AddToggle("EspHealthText", { Text = "Show HP Number", Default = false }):AddColorPicker("HPTextColor", { Default = Color3.fromRGB(255, 255, 255) })
 EspVisualsGroup:AddToggle("EspHealthGlow", { Text = "Health Bar Glow", Default = false }):AddColorPicker("HealthGlowColor", { Default = Color3.fromRGB(0, 255, 0) })
-EspVisualsGroup:AddToggle("EspName", { Text = "Draw Name", Default = false }):AddColorPicker("NameColor", { Default = Color3.fromRGB(255, 255, 255) })
-EspVisualsGroup:AddToggle("EspNameGlow", { Text = "Name Glow", Default = false }):AddColorPicker("NameGlowColor", { Default = Color3.fromRGB(255, 255, 255) })
+
 EspVisualsGroup:AddToggle("EspDistance", { Text = "Draw Distance", Default = false }):AddColorPicker("DistColor", { Default = Color3.fromRGB(255, 255, 255) })
 EspVisualsGroup:AddToggle("EspDistanceGlow", { Text = "Distance Glow", Default = false }):AddColorPicker("DistGlowColor", { Default = Color3.fromRGB(255, 255, 255) })
 
@@ -518,7 +534,13 @@ Library:OnUnload(function()
         for player, esp in pairs(ESP_Storage) do
             for _, obj in pairs(esp) do
                 if type(obj) == "table" then
-                    for _, subObj in pairs(obj) do if subObj and subObj.Remove then pcall(function() subObj:Remove() end) end end
+                    for _, subObj in pairs(obj) do 
+                        if type(subObj) == "table" then
+                            for _, deepObj in pairs(subObj) do if deepObj and deepObj.Remove then pcall(function() deepObj:Remove() end) end end
+                        else
+                            if subObj and subObj.Remove then pcall(function() subObj:Remove() end) end 
+                        end
+                    end
                 else
                     if obj and obj.Remove then pcall(function() obj:Remove() end) end
                 end
