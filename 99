@@ -27,6 +27,19 @@ local Tabs = {
 local Options = getgenv().Options
 local Toggles = getgenv().Toggles
 
+-- Helper Function: Safe Color Picker Reader
+local function GetColor(optionName, defaultColor)
+    local opt = Options[optionName]
+    if opt then
+        if typeof(opt.Value) == "Color3" then
+            return opt.Value
+        elseif typeof(opt) == "Color3" then
+            return opt
+        end
+    end
+    return defaultColor or Color3.fromRGB(255, 255, 255)
+end
+
 task.spawn(function()
     pcall(function()
         local MainFrame = Library.Main
@@ -92,7 +105,7 @@ local function CreateText()
     local text
     pcall(function()
         text = Drawing.new("Text")
-        text.Size = 12
+        text.Size = 13
         text.Center = true
         text.Outline = true
         text.OutlineColor = Color3.fromRGB(0, 0, 0)
@@ -121,30 +134,26 @@ local function ImplementESPSetup(holder)
         }
         holder.CornerLines = {
             CreateLine(1), CreateLine(1), CreateLine(1), CreateLine(1),
-            CreateLine(1), CreateLine(1), CreateLine(1), CreateLine(1)}
+            CreateLine(1), CreateLine(1), CreateLine(1), CreateLine(1)
+        }
         holder.CornerOutlines = {
             CreateLine(1), CreateLine(1), CreateLine(1), CreateLine(1),
             CreateLine(1), CreateLine(1), CreateLine(1), CreateLine(1),
             CreateLine(1), CreateLine(1), CreateLine(1), CreateLine(1),
             CreateLine(1), CreateLine(1), CreateLine(1), CreateLine(1)
         }
-        holder.BoxGlow = {
-            CreateLine(1.5), CreateLine(1.5), CreateLine(1.5), CreateLine(1.5),
-            CreateLine(2.5), CreateLine(2.5), CreateLine(2.5), CreateLine(2.5),
-            CreateLine(3.5), CreateLine(3.5), CreateLine(3.5), CreateLine(3.5)
-        }
 
         holder.HealthOutline = CreateSquare(true)
         holder.HealthBar = CreateSquare(true)
-        holder.HealthGlow = {CreateSquare(true), CreateSquare(true), CreateSquare(true)}
         holder.HealthText = CreateText()
         holder.Name = CreateText()
-        holder.NameGlow = {CreateText(), CreateText(), CreateText()}
         holder.Distance = CreateText()
-        holder.DistanceGlow = {CreateText(), CreateText(), CreateText()}
 
         if holder.HealthOutline then holder.HealthOutline.Color = Color3.fromRGB(0, 0, 0) end
-        if holder.HealthText then holder.HealthText.Size = 10 holder.HealthText.Center = true end
+        if holder.HealthText then 
+            holder.HealthText.Size = 11 
+            holder.HealthText.Center = true 
+        end
     end)
 end
 
@@ -160,13 +169,7 @@ local function RemoveESP(player)
             for _, obj in pairs(ESP_Storage[player]) do
                 if type(obj) == "table" then
                     for _, subObj in pairs(obj) do
-                        if type(subObj) == "table" then
-                            for _, deepObj in pairs(subObj) do
-                                if deepObj and deepObj.Remove then pcall(function() deepObj:Remove() end) end
-                            end
-                        else
-                            if subObj and subObj.Remove then pcall(function() subObj:Remove() end) end
-                        end
+                        if subObj and subObj.Remove then pcall(function() subObj:Remove() end) end
                     end
                 else
                     if obj and obj.Remove then pcall(function() obj:Remove() end) end
@@ -187,42 +190,12 @@ local function SetVisibilityFalse(esp)
         if esp.BoxOutlines then for i = 1, 8 do esp.BoxOutlines[i].Visible = false end end
         if esp.CornerLines then for i = 1, 8 do esp.CornerLines[i].Visible = false end end
         if esp.CornerOutlines then for i = 1, 16 do esp.CornerOutlines[i].Visible = false end end
-        if esp.BoxGlow then for i = 1, 12 do esp.BoxGlow[i].Visible = false end end
         if esp.HealthBar then esp.HealthBar.Visible = false end
         if esp.HealthOutline then esp.HealthOutline.Visible = false end
         if esp.HealthText then esp.HealthText.Visible = false end
-        if esp.HealthGlow then for i = 1, 3 do esp.HealthGlow[i].Visible = false end end
         if esp.Name then esp.Name.Visible = false end
-        if esp.NameGlow then for i = 1, 3 do esp.NameGlow[i].Visible = false end end
         if esp.Distance then esp.Distance.Visible = false end
-        if esp.DistanceGlow then for i = 1, 3 do esp.DistanceGlow[i].Visible = false end end
     end)
-end
-
-local function GetCharacterBounds(character)
-    local minX, minY = math.huge, math.huge
-    local maxX, maxY = -math.huge, -math.huge
-    local success, err = pcall(function()
-        for _, part in ipairs(character:GetChildren()) do
-            if part:IsA("BasePart") then
-                local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
-                if onScreen then
-                    local size = part.Size
-                    local top, topOn = Camera:WorldToViewportPoint((part.CFrame * CFrame.new(0, size.Y / 2, 0)).Position)
-                    local bottom, bottomOn = Camera:WorldToViewportPoint((part.CFrame * CFrame.new(0, -size.Y / 2, 0)).Position)
-                    local left, leftOn = Camera:WorldToViewportPoint((part.CFrame * CFrame.new(-size.X / 2, 0, 0)).Position)
-                    local right, rightOn = Camera:WorldToViewportPoint((part.CFrame * CFrame.new(size.X / 2, 0, 0)).Position)
-
-                    if topOn then minY = math.min(minY, top.Y) maxY = math.max(maxY, top.Y) end
-                    if bottomOn then minY = math.min(minY, bottom.Y) maxY = math.max(maxY, bottom.Y) end
-                    if leftOn then minX = math.min(minX, left.X) maxX = math.max(maxX, left.X) end
-                    if rightOn then minX = math.min(minX, right.X) maxX = math.max(maxX, right.X) end
-                end
-            end
-        end
-    end)
-    if not success then return math.huge, math.huge, -math.huge, -math.huge end
-    return minX, minY, maxX, maxY
 end
 
 game:GetService("RunService").RenderStepped:Connect(function()
@@ -233,20 +206,16 @@ game:GetService("RunService").RenderStepped:Connect(function()
             return
         end
 
-        local boxColor = Options.BoxColor and Options.BoxColor.Value or Color3.fromRGB(255, 255, 255)
-        local cornerColor = Options.CornerColor and Options.CornerColor.Value or Color3.fromRGB(0, 210, 255)
-        local boxGlowColor = Options.BoxGlowColor and Options.BoxGlowColor.Value or Color3.fromRGB(0, 210, 255)
-        local healthGlowColor = Options.HealthGlowColor and Options.HealthGlowColor.Value or Color3.fromRGB(0, 255, 0)
-        local nameGlowColor = Options.NameGlowColor and Options.NameGlowColor.Value or Color3.fromRGB(255, 255, 255)
-        local distGlowColor = Options.DistGlowColor and Options.DistGlowColor.Value or Color3.fromRGB(255, 255, 255)
-        local nameColor = Options.NameColor and Options.NameColor.Value or Color3.fromRGB(255, 255, 255)
-        local distColor = Options.DistColor and Options.DistColor.Value or Color3.fromRGB(255, 255, 255)
-        local hpTextColor = Options.HPTextColor and Options.HPTextColor.Value or Color3.fromRGB(255, 255, 255)
+        local boxColor = GetColor("BoxColor", Color3.fromRGB(255, 255, 255))
+        local cornerColor = GetColor("CornerColor", Color3.fromRGB(0, 210, 255))
+        local nameColor = GetColor("NameColor", Color3.fromRGB(255, 255, 255))
+        local distColor = GetColor("DistColor", Color3.fromRGB(255, 255, 255))
+        local hpTextColor = GetColor("HPTextColor", Color3.fromRGB(255, 255, 255))
         local nameStyle = Options.NameStyleDropdown and Options.NameStyleDropdown.Value or "Username"
 
-        local hpFullColor = Options.HPFullColor and Options.HPFullColor.Value or Color3.fromRGB(0, 255, 0)
-        local hpHalfColor = Options.HPHalfColor and Options.HPHalfColor.Value or Color3.fromRGB(255, 170, 0)
-        local hpLowColor = Options.HPLowColor and Options.HPLowColor.Value or Color3.fromRGB(255, 0, 0)
+        local hpFullColor = GetColor("HPFullColor", Color3.fromRGB(0, 255, 0))
+        local hpHalfColor = GetColor("HPHalfColor", Color3.fromRGB(255, 170, 0))
+        local hpLowColor = GetColor("HPLowColor", Color3.fromRGB(255, 0, 0))
 
         local renderQueue = {}
 
@@ -256,32 +225,45 @@ game:GetService("RunService").RenderStepped:Connect(function()
             local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 
             if rootPart and humanoid and humanoid.Health > 0 then
-                local _, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
+                local rootPos, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
                 
                 if onScreen then
-                    local minX, minY, maxX, maxY = GetCharacterBounds(character)
-                    if minX ~= math.huge and minY ~= math.huge and maxX ~= -math.huge and maxY ~= -math.huge then
-                        
-                        local selectedName = player.Name
-                        if nameStyle == "Display Name" then
-                            selectedName = player.DisplayName
-                        end
-
-                        table.insert(renderQueue, {
-                            player = player,
-                            esp = esp,
-                            boxX = math.round(minX),
-                            boxY = math.round(minY),
-                            width = math.round(maxX - minX),
-                            height = math.round(maxY - minY),
-                            healthPct = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1),
-                            rawHealth = math.round(humanoid.Health),
-                            nameText = selectedName,
-                            distText = "[" .. tostring(math.floor((Camera.CFrame.Position - rootPart.Position).Magnitude)) .. "m]"
-                        })
-                    else
-                        SetVisibilityFalse(esp)
+                    -- ปรับลด Offset ของหัวและเท้าให้ฟิตพอดีตัวละครมากขึ้น
+                    local headOffset = rootPart.CFrame * CFrame.new(0, 2.5, 0)
+                    local feetOffset = rootPart.CFrame * CFrame.new(0, -3.0, 0)
+                    
+                    local headPos = Camera:WorldToViewportPoint(headOffset.Position)
+                    local feetPos = Camera:WorldToViewportPoint(feetOffset.Position)
+                    
+                    local height = math.abs(headPos.Y - feetPos.Y)
+                    -- ปรับความกว้างสัดส่วนจาก 0.55 เหลือ 0.48 เพื่อไม่ให้กล่องกว้างเกินไป
+                    local width = height * 0.48
+                    local boxX = math.round(rootPos.X - (width / 2))
+                    local boxY = math.round(headPos.Y)
+                    
+                    local selectedName = player.Name
+                    if nameStyle == "Display Name" then
+                        selectedName = player.DisplayName
                     end
+
+                    local maxHp = humanoid.MaxHealth
+                    if not maxHp or maxHp <= 0 then maxHp = 100 end
+                    
+                    local currentHp = math.clamp(humanoid.Health, 0, maxHp)
+                    local pct = math.clamp(currentHp / maxHp, 0, 1)
+
+                    table.insert(renderQueue, {
+                        player = player,
+                        esp = esp,
+                        boxX = boxX,
+                        boxY = boxY,
+                        width = math.round(width),
+                        height = math.round(height),
+                        healthPct = pct,
+                        rawHealth = math.round(currentHp),
+                        nameText = selectedName,
+                        distText = "[" .. tostring(math.floor((Camera.CFrame.Position - rootPart.Position).Magnitude)) .. "m]"
+                    })
                 else
                     SetVisibilityFalse(esp)
                 end
@@ -293,68 +275,9 @@ game:GetService("RunService").RenderStepped:Connect(function()
         for _, data in ipairs(renderQueue) do
             local esp = data.esp
             
-            if esp.Name then esp.Name.Font = 3 end
-            if esp.Distance then esp.Distance.Font = 3 end
-            if esp.HealthText then esp.HealthText.Font = 0 end
-            for i=1,3 do
-                if esp.NameGlow[i] then esp.NameGlow[i].Font = 3 end
-                if esp.DistanceGlow[i] then esp.DistanceGlow[i].Font = 3 end
-            end
-
-            local glow = esp.BoxGlow
-            if Toggles.EspBoxGlow and Toggles.EspBoxGlow.Value then
-                glow[1].From, glow[1].To = Vector2.new(data.boxX - 1, data.boxY - 1), Vector2.new(data.boxX + data.width + 1, data.boxY - 1)
-                glow[2].From, glow[2].To = Vector2.new(data.boxX + data.width + 1, data.boxY - 1), Vector2.new(data.boxX + data.width + 1, data.boxY + data.height + 1)
-                glow[3].From, glow[3].To = Vector2.new(data.boxX + data.width + 1, data.boxY + data.height + 1), Vector2.new(data.boxX - 1, data.boxY + data.height + 1)
-                glow[4].From, glow[4].To = Vector2.new(data.boxX - 1, data.boxY + data.height + 1), Vector2.new(data.boxX - 1, data.boxY - 1)
-                glow[5].From, glow[5].To = Vector2.new(data.boxX - 2, data.boxY - 2), Vector2.new(data.boxX + data.width + 2, data.boxY - 2)
-                glow[6].From, glow[6].To = Vector2.new(data.boxX + data.width + 2, data.boxY - 2), Vector2.new(data.boxX + data.width + 2, data.boxY + data.height + 2)
-                glow[7].From, glow[7].To = Vector2.new(data.boxX + data.width + 2, data.boxY + data.height + 2), Vector2.new(data.boxX - 2, data.boxY + data.height + 2)
-                glow[8].From, glow[8].To = Vector2.new(data.boxX - 2, data.boxY + data.height + 2), Vector2.new(data.boxX - 2, data.boxY - 2)
-                glow[9].From, glow[9].To = Vector2.new(data.boxX - 3, data.boxY - 3), Vector2.new(data.boxX + data.width + 3, data.boxY - 3)
-                glow[10].From, glow[10].To = Vector2.new(data.boxX + data.width + 3, data.boxY - 3), Vector2.new(data.boxX + data.width + 3, data.boxY + data.height + 3)
-                glow[11].From, glow[11].To = Vector2.new(data.boxX + data.width + 3, data.boxY + data.height + 3), Vector2.new(data.boxX - 3, data.boxY + data.height + 3)
-                glow[12].From, glow[12].To = Vector2.new(data.boxX - 3, data.boxY + data.height + 3), Vector2.new(data.boxX - 3, data.boxY - 3)
-                for i = 1, 4 do glow[i].Color = boxGlowColor; glow[i].Transparency = 0.5; glow[i].Visible = true end
-                for i = 5, 8 do glow[i].Color = boxGlowColor; glow[i].Transparency = 0.25; glow[i].Visible = true end
-                for i = 9, 12 do glow[i].Color = boxGlowColor; glow[i].Transparency = 0.1; glow[i].Visible = true end
-            else
-                for i = 1, 12 do glow[i].Visible = false end
-            end
-
-            local hGlow = esp.HealthGlow
-            if Toggles.EspHealthGlow and Toggles.EspHealthGlow.Value and Toggles.EspHealth and Toggles.EspHealth.Value then
-                local hHeight = math.round(data.height * data.healthPct)
-                local hY = data.boxY + data.height - hHeight
-                hGlow[1].Size = Vector2.new(4, hHeight + 2); hGlow[1].Position = Vector2.new(data.boxX - 7, hY - 1); hGlow[1].Transparency = 0.4
-                hGlow[2].Size = Vector2.new(6, hHeight + 4); hGlow[2].Position = Vector2.new(data.boxX - 8, hY - 2); hGlow[2].Transparency = 0.2
-                hGlow[3].Size = Vector2.new(8, hHeight + 6); hGlow[3].Position = Vector2.new(data.boxX - 9, hY - 3); hGlow[3].Transparency = 0.08
-                for i = 1, 3 do hGlow[i].Color = healthGlowColor; hGlow[i].Visible = true end
-            else
-                for i = 1, 3 do hGlow[i].Visible = false end
-            end
-
-            local nGlow = esp.NameGlow
-            if Toggles.EspNameGlow and Toggles.EspNameGlow.Value and Toggles.EspName and Toggles.EspName.Value then
-                local nPos = Vector2.new(data.boxX + (data.width / 2), data.boxY - 15)
-                nGlow[1].Text = data.nameText; nGlow[1].Position = nPos + Vector2.new(1, 0); nGlow[1].Transparency = 0.5
-                nGlow[2].Text = data.nameText; nGlow[2].Position = nPos + Vector2.new(-1, 0); nGlow[2].Transparency = 0.3
-                nGlow[3].Text = data.nameText; nGlow[3].Position = nPos + Vector2.new(0, 1); nGlow[3].Transparency = 0.15
-                for i = 1, 3 do nGlow[i].Color = nameGlowColor; nGlow[i].Center = true; nGlow[i].Outline = false; nGlow[i].Visible = true end
-            else
-                for i = 1, 3 do nGlow[i].Visible = false end
-            end
-
-            local dGlow = esp.DistanceGlow
-            if Toggles.EspDistanceGlow and Toggles.EspDistanceGlow.Value and Toggles.EspDistance and Toggles.EspDistance.Value then
-                local dPos = Vector2.new(data.boxX + (data.width / 2), data.boxY + data.height + 4)
-                dGlow[1].Text = data.distText; dGlow[1].Position = dPos + Vector2.new(1, 0); dGlow[1].Transparency = 0.5
-                dGlow[2].Text = data.distText; dGlow[2].Position = dPos + Vector2.new(-1, 0); dGlow[2].Transparency = 0.3
-                dGlow[3].Text = data.distText; dGlow[3].Position = dPos + Vector2.new(0, 1); dGlow[3].Transparency = 0.15
-                for i = 1, 3 do dGlow[i].Color = distGlowColor; dGlow[i].Center = true; dGlow[i].Outline = false; dGlow[i].Visible = true end
-            else
-                for i = 1, 3 do dGlow[i].Visible = false end
-            end
+            if esp.Name then esp.Name.Font = 2 end
+            if esp.Distance then esp.Distance.Font = 2 end
+            if esp.HealthText then esp.HealthText.Font = 2 end
 
             local corner = esp.CornerLines
             local cornerOut = esp.CornerOutlines
@@ -362,7 +285,8 @@ game:GetService("RunService").RenderStepped:Connect(function()
             local isNormalBox = Toggles.EspBox and Toggles.EspBox.Value
 
             if isCorner then
-                local cl = math.clamp(math.round(data.width * 0.2), 5, 20)
+                -- ปรับอัตราส่วนเส้นมุม ให้เข้ากับขนาดกล่องใหม่
+                local cl = math.clamp(math.round(data.width * 0.22), 3, 12)
                 corner[1].From, corner[1].To = Vector2.new(data.boxX, data.boxY), Vector2.new(data.boxX + cl, data.boxY)
                 corner[2].From, corner[2].To = Vector2.new(data.boxX, data.boxY), Vector2.new(data.boxX, data.boxY + cl)
                 corner[3].From, corner[3].To = Vector2.new(data.boxX + data.width, data.boxY), Vector2.new(data.boxX + data.width - cl, data.boxY)
@@ -423,27 +347,40 @@ game:GetService("RunService").RenderStepped:Connect(function()
             end
 
             if Toggles.EspHealth and Toggles.EspHealth.Value then
-                local healthHeight = math.round(data.height * data.healthPct)
-                local barY = data.boxY + data.height - healthHeight
-                esp.HealthOutline.Size = Vector2.new(4, data.height + 2)
-                esp.HealthOutline.Position = Vector2.new(data.boxX - 7, data.boxY - 1)
+                -- ปรับหลอดเลือดให้กะทัดรัดและชิดกล่องมากขึ้น
+                local barWidth = 1.5
+                local outlinePadding = 1
+                local barX = data.boxX - 5
+                
+                esp.HealthOutline.Size = Vector2.new(barWidth + (outlinePadding * 2), data.height + (outlinePadding * 2))
+                esp.HealthOutline.Position = Vector2.new(barX - outlinePadding, data.boxY - outlinePadding)
                 esp.HealthOutline.Visible = true
-                esp.HealthBar.Size = Vector2.new(2, healthHeight)
-                esp.HealthBar.Position = Vector2.new(data.boxX - 6, barY)
-                
-                local finalCalculatedColor = hpFullColor
-                if data.healthPct < 0.35 then
-                    finalCalculatedColor = hpLowColor
-                elseif data.healthPct < 0.75 then
-                    finalCalculatedColor = hpHalfColor
+
+                local healthHeight = math.clamp(math.round(data.height * data.healthPct), 0, data.height)
+                local barY = data.boxY + (data.height - healthHeight)
+
+                if healthHeight > 0 then
+                    esp.HealthBar.Size = Vector2.new(barWidth, healthHeight)
+                    esp.HealthBar.Position = Vector2.new(barX, barY)
+
+                    local finalCalculatedColor
+                    if data.healthPct > 0.5 then
+                        local alpha = (data.healthPct - 0.5) * 2
+                        finalCalculatedColor = hpHalfColor:Lerp(hpFullColor, math.clamp(alpha, 0, 1))
+                    else
+                        local alpha = data.healthPct * 2
+                        finalCalculatedColor = hpLowColor:Lerp(hpHalfColor, math.clamp(alpha, 0, 1))
+                    end
+
+                    esp.HealthBar.Color = finalCalculatedColor
+                    esp.HealthBar.Visible = true
+                else
+                    esp.HealthBar.Visible = false
                 end
-                
-                esp.HealthBar.Color = finalCalculatedColor
-                esp.HealthBar.Visible = true
 
                 if Toggles.EspHealthText and Toggles.EspHealthText.Value then
                     esp.HealthText.Text = tostring(data.rawHealth)
-                    esp.HealthText.Position = Vector2.new(data.boxX - 16, barY - 2)
+                    esp.HealthText.Position = Vector2.new(barX - 10, math.clamp(barY - 4, data.boxY - 4, data.boxY + data.height - 10))
                     esp.HealthText.Color = hpTextColor
                     esp.HealthText.Visible = true
                 else
@@ -457,7 +394,8 @@ game:GetService("RunService").RenderStepped:Connect(function()
 
             if Toggles.EspName and Toggles.EspName.Value then
                 esp.Name.Text = data.nameText
-                esp.Name.Position = Vector2.new(data.boxX + (data.width / 2), data.boxY - 15)
+                -- ขยับชื่อลงมาจากเดิม (-14 เป็น -12) ให้ติดหัวมากขึ้น
+                esp.Name.Position = Vector2.new(data.boxX + (data.width / 2), data.boxY - 12)
                 esp.Name.Color = nameColor
                 esp.Name.Visible = true
             else
@@ -466,7 +404,8 @@ game:GetService("RunService").RenderStepped:Connect(function()
 
             if Toggles.EspDistance and Toggles.EspDistance.Value then
                 esp.Distance.Text = data.distText
-                esp.Distance.Position = Vector2.new(data.boxX + (data.width / 2), data.boxY + data.height + 4)
+                -- ขยับระยะทางขึ้นมาจากเดิม (+2 เป็น +1) ให้ติดเท้ามากขึ้น
+                esp.Distance.Position = Vector2.new(data.boxX + (data.width / 2), data.boxY + data.height + 1)
                 esp.Distance.Color = distColor
                 esp.Distance.Visible = true
             else
@@ -483,22 +422,18 @@ EspGroup:AddToggle("EspMaster", { Text = "Enable Drawing Esp", Default = false }
 
 EspVisualsGroup:AddToggle("EspBox", { Text = "Draw Box", Default = false }):AddColorPicker("BoxColor", { Default = Color3.fromRGB(255, 255, 255) })
 EspVisualsGroup:AddToggle("EspCornerBox", { Text = "Corner Box", Default = false }):AddColorPicker("CornerColor", { Default = Color3.fromRGB(255, 255, 255) })
-EspVisualsGroup:AddToggle("EspBoxGlow", { Text = "Box Glow", Default = false }):AddColorPicker("BoxGlowColor", { Default = Color3.fromRGB(255, 255, 255) })
 
 EspVisualsGroup:AddToggle("EspName", { Text = "Draw Name", Default = false }):AddColorPicker("NameColor", { Default = Color3.fromRGB(255, 255, 255) })
 EspVisualsGroup:AddDropdown("NameStyleDropdown", { Text = "Name Style", Values = {"Username", "Display Name"}, Default = 1, Multi = false })
-EspVisualsGroup:AddToggle("EspNameGlow", { Text = "Name Glow", Default = false }):AddColorPicker("NameGlowColor", { Default = Color3.fromRGB(255, 255, 255) })
 
-EspVisualsGroup:AddToggle("EspHealth", { Text = "Draw Health Bar", Default = false })
-    :AddColorPicker("HPFullColor", { Default = Color3.fromRGB(0, 255, 0), Title = "Full HP Color" })
-    :AddColorPicker("HPHalfColor", { Default = Color3.fromRGB(255, 170, 0), Title = "Half HP Color" })
-    :AddColorPicker("HPLowColor", { Default = Color3.fromRGB(255, 0, 0), Title = "Low HP Color" })
+local EspHealthToggle = EspVisualsGroup:AddToggle("EspHealth", { Text = "Draw Health Bar", Default = false })
+EspHealthToggle:AddColorPicker("HPFullColor", { Default = Color3.fromRGB(0, 255, 0), Title = "Full HP Color" })
+EspHealthToggle:AddColorPicker("HPHalfColor", { Default = Color3.fromRGB(255, 170, 0), Title = "Half HP Color" })
+EspHealthToggle:AddColorPicker("HPLowColor", { Default = Color3.fromRGB(255, 0, 0), Title = "Low HP Color" })
 
 EspVisualsGroup:AddToggle("EspHealthText", { Text = "Show HP Number", Default = false }):AddColorPicker("HPTextColor", { Default = Color3.fromRGB(255, 255, 255) })
-EspVisualsGroup:AddToggle("EspHealthGlow", { Text = "Health Bar Glow", Default = false }):AddColorPicker("HealthGlowColor", { Default = Color3.fromRGB(0, 255, 0) })
 
 EspVisualsGroup:AddToggle("EspDistance", { Text = "Draw Distance", Default = false }):AddColorPicker("DistColor", { Default = Color3.fromRGB(255, 255, 255) })
-EspVisualsGroup:AddToggle("EspDistanceGlow", { Text = "Distance Glow", Default = false }):AddColorPicker("DistGlowColor", { Default = Color3.fromRGB(255, 255, 255) })
 
 local InterfaceGroup = Tabs['UI']:AddLeftGroupbox("Menu Customization")
 local MenuGroup = Tabs['UI']:AddLeftGroupbox("Menu Settings")
@@ -535,11 +470,7 @@ Library:OnUnload(function()
             for _, obj in pairs(esp) do
                 if type(obj) == "table" then
                     for _, subObj in pairs(obj) do 
-                        if type(subObj) == "table" then
-                            for _, deepObj in pairs(subObj) do if deepObj and deepObj.Remove then pcall(function() deepObj:Remove() end) end end
-                        else
-                            if subObj and subObj.Remove then pcall(function() subObj:Remove() end) end 
-                        end
+                        if subObj and subObj.Remove then pcall(function() subObj:Remove() end) end 
                     end
                 else
                     if obj and obj.Remove then pcall(function() obj:Remove() end) end
