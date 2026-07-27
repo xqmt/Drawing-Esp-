@@ -109,7 +109,7 @@ local function CreateText()
         text.Center = true
         text.Outline = true
         text.OutlineColor = Color3.fromRGB(0, 0, 0)
-        text.Font = 2
+        text.Font = 3
     end)
     return text
 end
@@ -275,9 +275,9 @@ game:GetService("RunService").RenderStepped:Connect(function()
         for _, data in ipairs(renderQueue) do
             local esp = data.esp
             
-            if esp.Name then esp.Name.Font = 2 end
-            if esp.Distance then esp.Distance.Font = 2 end
-            if esp.HealthText then esp.HealthText.Font = 2 end
+            if esp.Name then esp.Name.Font = 3 end
+            if esp.Distance then esp.Distance.Font = 3 end
+            if esp.HealthText then esp.HealthText.Font = 3 end
 
             local corner = esp.CornerLines
             local cornerOut = esp.CornerOutlines
